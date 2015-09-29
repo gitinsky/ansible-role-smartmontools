@@ -1,0 +1,39 @@
+- name: apt update
+  apt: update_cache=yes cache_valid_time=86400
+
+- name: install checkinstall, build-essential and uri module requirements
+  apt: name={{ item }}
+  with_items:
+      - checkinstall
+      - python-httplib2
+      - build-essential
+
+- name: create directory for smartmontools
+  file: dest=/opt/smartmontools state=directory
+
+- name: get smartmontools version
+  shell: curl -s http://sourceforge.net/projects/smartmontools/files/latest/download?source=files|grep href|sed -E "s/.*smartmontools-(.*).tar.*/\1/"
+  changed_when: no
+  register: curl
+  
+- name: set version and arch fact
+  set_fact:
+      version: "{{ curl.stdout }}"
+
+- name: download latest smartmontools # should be depricated in ansible 2.0
+  get_url: url=http://sourceforge.net/projects/smartmontools/files/latest/download?source=files dest=/opt/smartmontools/smartmontools.tar.gz
+  register: url
+
+- name: untar smartmontools
+  unarchive: src=/opt/smartmontools/smartmontools.tar.gz dest=/opt/smartmontools/ copy=no
+  register: untar
+
+- name: configure
+  shell: ./configure chdir=/opt/smartmontools/smartmontools-{{ version }}
+
+- name: build deb
+  shell: checkinstall -D --pkgname smartmontools --pakdir /opt/smartmontools/ --pkgversion {{ version }} -y
+         chdir=/opt/smartmontools/smartmontools-{{ version }}
+         
+# - name: install created deb
+#   apt: deb=smartmontools_6.4-1_amd64.deb
